@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/home/maike/Github/esp32_dht11_library/build/CMakeFiles/bootloader
+/home/maike/Github/esp32_dht11_library/build/CMakeFiles/bootloader.rule
+/home/maike/Github/esp32_dht11_library/build/CMakeFiles/bootloader-complete.rule
+/home/maike/Github/esp32_dht11_library/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/home/maike/Github/esp32_dht11_library/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/home/maike/Github/esp32_dht11_library/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/home/maike/Github/esp32_dht11_library/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
+/home/maike/Github/esp32_dht11_library/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/home/maike/Github/esp32_dht11_library/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/home/maike/Github/esp32_dht11_library/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule

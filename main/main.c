@@ -17,16 +17,22 @@ void task(void *pvParameter)
 {
     while (1)
     {
-        get_temperature();
-        get_humidity();
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG, "T: %f, RH: %f", get_temperature(), get_humidity());
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
         taskYIELD();
     }
 }
 
 void app_main(void)
 {
-    set_dht_gpio(2);
+    set_dht_gpio(4);
+    // while (1)
+    // {
+    //     ESP_LOGI(TAG, "T: %f, RH: %f", get_temperature(), get_humidity());
+    //     vTaskDelay(3000/ portTICK_PERIOD_MS);
+    // }
+    
+    
     xTaskCreate(&task, "task", 8000, NULL, 5, NULL);
 }

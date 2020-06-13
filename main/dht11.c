@@ -47,35 +47,34 @@
  */
 
 #include "dht11.h"
+#include "string.h"
+static const char *TAG_DHT = "DHT sensor";
 
-static const char *TAG = "DHT sensor";
-
-#define TIMEOUT_ERROR 255
+#define TIMEOUT_ERROR 127
 #define RESPONSE_OK 1
 
 static int64_t last_read_time = -2000000;
-static uint8_t bytes[5] = {0};
-float RH = 0;
-float T = 0;
+volatile uint8_t bytes[5] = {0};
+volatile float RH = 0;
+volatile float T = 0;
 
-uint8_t DHT_GPIO = 2;
-
+uint8_t DHT_GPIO = 4;
 
 //func prototypes
 static uint8_t wait_response();
-uint8_t wait_change_level(int level, int time);
-_Bool check_crc(uint8_t *data);
+static uint8_t wait_change_level(int level, int time);
+static _Bool check_crc(uint8_t *data);
 
-
+static void send_dht_start();
+static uint8_t *read_dht_data();
+static void decode_data();
 
 void set_dht_gpio(uint8_t pin)
 {
    DHT_GPIO = pin;
 }
 
-
-
-void send_dht_start()
+static void send_dht_start()
 {
 
    gpio_set_direction(DHT_GPIO, GPIO_MODE_OUTPUT);
@@ -90,8 +89,6 @@ void send_dht_start()
    gpio_pad_select_gpio(DHT_GPIO);
 }
 
-
-
 static uint8_t wait_response()
 {
    if (wait_change_level(0, 80) == TIMEOUT_ERROR)
@@ -103,9 +100,7 @@ static uint8_t wait_response()
    return RESPONSE_OK;
 }
 
-
-
-uint8_t wait_change_level(int level, int time)
+static uint8_t wait_change_level(int level, int time)
 {
    uint8_t cpt = 0;
 
@@ -122,19 +117,20 @@ uint8_t wait_change_level(int level, int time)
    return cpt;
 }
 
-
-
-uint8_t *read_dht_data()
+static uint8_t *read_dht_data()
 {
-   //If the last reading was 2 seconds ago pass 
+   //If the last reading was 2 seconds ago pass
    //otherwise, return last reading.
    if (esp_timer_get_time() - last_read_time < 2000000)
+   {
+      ESP_LOGI(TAG_DHT, "EARLY READ, LAST WAS < 2 seconds ago!");
       return bytes;
+   }
    last_read_time = esp_timer_get_time();
 
-
    uint8_t time_width = 0;
-
+   memset(bytes, 0, sizeof(bytes));
+   
    portMUX_TYPE my_spinlock = portMUX_INITIALIZER_UNLOCKED;
    portENTER_CRITICAL(&my_spinlock); // timing critical start
    {
@@ -165,42 +161,38 @@ uint8_t *read_dht_data()
       }
    }
    portEXIT_CRITICAL(&my_spinlock); // timing critical end
-
+   ESP_LOGI(TAG_DHT, "END OF READ!");
    return bytes;
 }
 
-
-
-_Bool check_crc(uint8_t *data)
+static _Bool check_crc(uint8_t *data)
 {
    if (data[4] == (data[0] + data[1] + data[2] + data[3]))
+   {
+      ESP_LOGI(TAG_DHT, "VALID CRC");
       return true;
+   }
 
+   ESP_LOGI(TAG_DHT, "INVALID CRC");
    return false;
 }
 
-
-
-void decode_data()
+static void decode_data()
 {
    uint8_t *arr = read_dht_data();
 
-   if (check_crc(arr))
-   {
-      RH = arr[0] + arr[1] / 10.0;
-      T = arr[2] + arr[3] / 10.0;
-   }
+   //if (check_crc(arr))
+   //{
+   RH = arr[0] + (arr[1] / 10.0);
+   T = arr[2] + (arr[3] / 10.0);
+   //}
 }
-
-
 
 float get_temperature()
 {
    decode_data();
    return T;
 }
-
-
 
 float get_humidity()
 {
