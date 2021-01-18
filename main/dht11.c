@@ -50,15 +50,14 @@
 #include "string.h"
 static const char *TAG_DHT = "DHT sensor";
 
-#define TIMEOUT_ERROR 127
+#define TIMEOUT_ERROR -1
 #define RESPONSE_OK 1
 
 static int64_t last_read_time = -2000000;
-volatile uint8_t bytes[5] = {0};
-volatile float RH = 0;
-volatile float T = 0;
+float RH = 0;
+float T = 0;
 
-uint8_t DHT_GPIO = 4;
+uint8_t DHT_GPIO = 15;
 
 //func prototypes
 static uint8_t wait_response();
@@ -66,7 +65,7 @@ static uint8_t wait_change_level(int level, int time);
 static _Bool check_crc(uint8_t *data);
 
 static void send_dht_start();
-static uint8_t *read_dht_data();
+void read_dht_data(uint8_t *raw_bytes);
 static void decode_data();
 
 void set_dht_gpio(uint8_t pin)
@@ -117,52 +116,50 @@ static uint8_t wait_change_level(int level, int time)
    return cpt;
 }
 
-static uint8_t *read_dht_data()
+void read_dht_data(uint8_t *raw_bytes)
 {
    //If the last reading was 2 seconds ago pass
    //otherwise, return last reading.
-   if (esp_timer_get_time() - last_read_time < 2000000)
+   if (esp_timer_get_time() - last_read_time > 2000000)
    {
-      ESP_LOGI(TAG_DHT, "EARLY READ, LAST WAS < 2 seconds ago!");
-      return bytes;
-   }
-   last_read_time = esp_timer_get_time();
+      ESP_LOGI(TAG_DHT, "Ready: last read was > 2 sec ago!");
 
-   uint8_t time_width = 0;
-   memset(bytes, 0, sizeof(bytes));
-   
-   portMUX_TYPE my_spinlock = portMUX_INITIALIZER_UNLOCKED;
-   portENTER_CRITICAL(&my_spinlock); // timing critical start
-   {
-      //Send start
-      send_dht_start();
-      ets_delay_us(10);
-      //wait reponse
-      if (wait_response() != RESPONSE_OK)
-         return NULL;
+      last_read_time = esp_timer_get_time();
 
-      //start reading
-      for (uint8_t i = 0; i < 40; i++)
+      uint8_t time_width = 0;
+
+      portMUX_TYPE my_spinlock = portMUX_INITIALIZER_UNLOCKED;
+      portENTER_CRITICAL(&my_spinlock); // timing critical start
       {
-         //0 is start-bit
-         if (wait_change_level(0, 50) == TIMEOUT_ERROR)
-         {
-            return TIMEOUT_ERROR;
-         }
-         else
-         {
-            //1 with variable length is the data bit
-            time_width = wait_change_level(1, 80);
+         //Send start
+         send_dht_start();
+         ets_delay_us(10);
+         //wait reponse
+         if (wait_response() != RESPONSE_OK)
+            return NULL;
 
-            //20 and 30 was time widths found printing time_width
-            if (time_width > 30)
-               set_bit(bytes[i / 8], (7 - (i % 8)));
+         //start reading
+         for (uint8_t i = 0; i < 40; i++)
+         {
+            //0 is start-bit
+            if (wait_change_level(0, 50) == TIMEOUT_ERROR)
+            {
+               return TIMEOUT_ERROR;
+            }
+            else
+            {
+               //1 with variable length is the data bit
+               time_width = wait_change_level(1, 80);
+
+               //20 and 30 was time widths found printing time_width
+               if (time_width > 30)
+                  set_bit(raw_bytes[i / 8], (7 - (i % 8)));
+            }
          }
       }
+      portEXIT_CRITICAL(&my_spinlock); // timing critical end
+      ESP_LOGI(TAG_DHT, "END OF READ!");
    }
-   portEXIT_CRITICAL(&my_spinlock); // timing critical end
-   ESP_LOGI(TAG_DHT, "END OF READ!");
-   return bytes;
 }
 
 static _Bool check_crc(uint8_t *data)
@@ -179,23 +176,18 @@ static _Bool check_crc(uint8_t *data)
 
 static void decode_data()
 {
-   uint8_t *arr = read_dht_data();
+   uint8_t bytes[5] = {0};
+   read_dht_data(&bytes);
 
-   //if (check_crc(arr))
-   //{
-   RH = arr[0] + (arr[1] / 10.0);
-   T = arr[2] + (arr[3] / 10.0);
-   //}
+   if (check_crc(bytes))
+   {
+      RH = bytes[0] + (bytes[1] / 10.0);
+      T = bytes[2] + (bytes[3] / 10.0);
+   }
 }
 
-float get_temperature()
+void read_dht(float *temp, float *hum)
 {
    decode_data();
-   return T;
-}
-
-float get_humidity()
-{
-   decode_data();
-   return RH;
+   *temp = T, *hum = RH;
 }

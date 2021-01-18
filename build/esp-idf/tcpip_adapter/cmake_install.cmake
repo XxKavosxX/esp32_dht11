@@ -1,8 +1,8 @@
-# Install script for directory: /home/maike/esp/esp-idf/components/tcpip_adapter
+# Install script for directory: C:/Users/eng_r/esp-idf/components/tcpip_adapter
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/usr/local")
+  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/template-app")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 

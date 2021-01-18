@@ -13,8 +13,8 @@
 
 
 void set_dht_gpio(uint8_t pin);
-float get_temperature();
-float get_humidity();
+void read_dht(float *temp, float *hum);
+
 
 
 
