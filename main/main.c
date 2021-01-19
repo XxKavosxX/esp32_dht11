@@ -27,7 +27,7 @@ static const char *TAG = "main";
 void app_main(void)
 {
     set_dht_gpio(15);
-    float temp = 0, hum = 0;
+    double temp = 0, hum = 0;
     while (1)
     {
         read_dht(&temp, &hum);

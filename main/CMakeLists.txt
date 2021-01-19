@@ -1,4 +1,4 @@
 idf_component_register(
-    SRCS "dht11.c" "main.c"
-    INCLUDE_DIRS ""
+    SRCS "main.c" "dht11.c"
+    INCLUDE_DIRS "."
 )

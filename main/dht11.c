@@ -48,146 +48,118 @@
 
 #include "dht11.h"
 #include "string.h"
-static const char *TAG_DHT = "DHT sensor";
+static const char *TAG = "DHT";
 
+#define RESPONSE_ERR -3
+#define CRC_ERROR -2
 #define TIMEOUT_ERROR -1
-#define RESPONSE_OK 1
+#define DHT_OK 0
 
 static int64_t last_read_time = -2000000;
-float RH = 0;
-float T = 0;
 
-uint8_t DHT_GPIO = 15;
+gpio_num_t DHT_GPIO = 15;
 
 //func prototypes
-static uint8_t wait_response();
-static uint8_t wait_change_level(int level, int time);
-static _Bool check_crc(uint8_t *data);
+static int wait_response();
+static int wait_change_level(int level, int time);
+int check_crc(uint8_t *data);
 
 static void send_dht_start();
-void read_dht_data(uint8_t *raw_bytes);
-static void decode_data();
+static int read_dht_data(uint8_t raw_bytes[5]);
 
-void set_dht_gpio(uint8_t pin)
+void set_dht_gpio(gpio_num_t pin)
 {
+   vTaskDelay(1000 / portTICK_PERIOD_MS);
    DHT_GPIO = pin;
 }
 
 static void send_dht_start()
 {
-
+   gpio_pad_select_gpio(DHT_GPIO);
    gpio_set_direction(DHT_GPIO, GPIO_MODE_OUTPUT);
-
    gpio_set_level(DHT_GPIO, 0);
-   ets_delay_us(20000);
-
+   ets_delay_us(20 * 1000);
    gpio_set_level(DHT_GPIO, 1);
    ets_delay_us(40);
-
    gpio_set_direction(DHT_GPIO, GPIO_MODE_INPUT);
-   gpio_pad_select_gpio(DHT_GPIO);
 }
 
-static uint8_t wait_response()
+static int wait_response()
 {
    if (wait_change_level(0, 80) == TIMEOUT_ERROR)
-      return TIMEOUT_ERROR;
+      return RESPONSE_ERR;
 
    if (wait_change_level(1, 80) == TIMEOUT_ERROR)
-      return TIMEOUT_ERROR;
+      return RESPONSE_ERR;
 
-   return RESPONSE_OK;
+   return DHT_OK;
 }
 
-static uint8_t wait_change_level(int level, int time)
+static int wait_change_level(int level, int usec_time)
 {
-   uint8_t cpt = 0;
-
-   //Count how many time gpio is equal to level
+   int usec_ticks = 0;
    while (gpio_get_level(DHT_GPIO) == level)
    {
-      if (cpt > time)
-      {
+      if (usec_ticks++ > usec_time)
          return TIMEOUT_ERROR;
-      }
-      ++cpt;
       ets_delay_us(1);
    }
-   return cpt;
+   return usec_ticks;
 }
 
-void read_dht_data(uint8_t *raw_bytes)
+static int read_dht_data(uint8_t raw_bytes[5])
 {
    //If the last reading was 2 seconds ago pass
    //otherwise, return last reading.
-   if (esp_timer_get_time() - last_read_time > 2000000)
+   if (esp_timer_get_time() - 2000000 < last_read_time)
+      return TIMEOUT_ERROR;
+
+   last_read_time = esp_timer_get_time();
+
+   uint8_t time_width = 0;
+
+   send_dht_start();
+
+   if (wait_response() == RESPONSE_ERR)
+      return RESPONSE_ERR;
+
+   //start reading
+   for (uint8_t i = 0; i < 40; i++)
    {
-      ESP_LOGI(TAG_DHT, "Ready: last read was > 2 sec ago!");
+      //0 is start-bit
+      if (wait_change_level(0, 50) == TIMEOUT_ERROR)
+         return TIMEOUT_ERROR;
 
-      last_read_time = esp_timer_get_time();
-
-      uint8_t time_width = 0;
-
-      portMUX_TYPE my_spinlock = portMUX_INITIALIZER_UNLOCKED;
-      portENTER_CRITICAL(&my_spinlock); // timing critical start
-      {
-         //Send start
-         send_dht_start();
-         ets_delay_us(10);
-         //wait reponse
-         if (wait_response() != RESPONSE_OK)
-            return NULL;
-
-         //start reading
-         for (uint8_t i = 0; i < 40; i++)
-         {
-            //0 is start-bit
-            if (wait_change_level(0, 50) == TIMEOUT_ERROR)
-            {
-               return TIMEOUT_ERROR;
-            }
-            else
-            {
-               //1 with variable length is the data bit
-               time_width = wait_change_level(1, 80);
-
-               //20 and 30 was time widths found printing time_width
-               if (time_width > 30)
-                  set_bit(raw_bytes[i / 8], (7 - (i % 8)));
-            }
-         }
-      }
-      portEXIT_CRITICAL(&my_spinlock); // timing critical end
-      ESP_LOGI(TAG_DHT, "END OF READ!");
+      //1 with variable length is the data bit
+      time_width = wait_change_level(1, 70);
+      //20 and 30 was time widths found printing time_width
+      if (time_width > 28)
+         set_bit(raw_bytes[i / 8], (7 - (i % 8)));
    }
+   return DHT_OK;
 }
 
-static _Bool check_crc(uint8_t *data)
+int check_crc(uint8_t *data)
 {
    if (data[4] == (data[0] + data[1] + data[2] + data[3]))
-   {
-      ESP_LOGI(TAG_DHT, "VALID CRC");
-      return true;
-   }
-
-   ESP_LOGI(TAG_DHT, "INVALID CRC");
-   return false;
+      return DHT_OK;
+   else
+      return CRC_ERROR;
 }
 
-static void decode_data()
+void read_dht(double *temp, double *hum)
 {
+   //Clear
+   *temp = 0, *hum = 0;
+
    uint8_t bytes[5] = {0};
-   read_dht_data(&bytes);
+   int err = 0;
+   err = read_dht_data(bytes);
 
-   if (check_crc(bytes))
+   if (check_crc(bytes) != CRC_ERROR && (err == DHT_OK))
    {
-      RH = bytes[0] + (bytes[1] / 10.0);
-      T = bytes[2] + (bytes[3] / 10.0);
+      *hum = bytes[0] + (bytes[1] / 10.0);
+      *temp = bytes[2] + (bytes[3] / 10.0);
+      ESP_LOGI(TAG, "T: %f, H:%f", *temp, *hum);
    }
-}
-
-void read_dht(float *temp, float *hum)
-{
-   decode_data();
-   *temp = T, *hum = RH;
 }

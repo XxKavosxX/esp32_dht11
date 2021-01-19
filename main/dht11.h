@@ -12,8 +12,8 @@
 #include "utility.h"
 
 
-void set_dht_gpio(uint8_t pin);
-void read_dht(float *temp, float *hum);
+void set_dht_gpio(gpio_num_t pin);
+void read_dht(double *temp, double *hum);
 
 
 
