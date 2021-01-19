@@ -68,14 +68,17 @@ static void send_dht_start();
 static int read_dht_data(uint8_t raw_bytes[5]);
 
 void set_dht_gpio(gpio_num_t pin)
-{
+{  
+   //Wait to pass the unstable state
    vTaskDelay(1000 / portTICK_PERIOD_MS);
    DHT_GPIO = pin;
 }
 
 static void send_dht_start()
-{
+{  
+   //Select pad as GPIO mode, to control pin and read
    gpio_pad_select_gpio(DHT_GPIO);
+
    gpio_set_direction(DHT_GPIO, GPIO_MODE_OUTPUT);
    gpio_set_level(DHT_GPIO, 0);
    ets_delay_us(20 * 1000);
@@ -109,8 +112,7 @@ static int wait_change_level(int level, int usec_time)
 
 static int read_dht_data(uint8_t raw_bytes[5])
 {
-   //If the last reading was 2 seconds ago pass
-   //otherwise, return last reading.
+
    if (esp_timer_get_time() - 2000000 < last_read_time)
       return TIMEOUT_ERROR;
 

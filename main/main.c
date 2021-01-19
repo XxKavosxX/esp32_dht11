@@ -13,17 +13,7 @@
 #include "esp_spi_flash.h"
 #include "dht11.h"
 static const char *TAG = "main";
-/*void task(void *pvParameter)
-{
-    while (1)
-    {
 
-        ESP_LOGI(TAG, "T: %f, RH: %f", get_temperature(), get_humidity());
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
-        taskYIELD();
-    }
-}
-*/
 void app_main(void)
 {
     set_dht_gpio(15);
@@ -35,6 +25,4 @@ void app_main(void)
         ESP_LOGI(TAG, "T: %f, RH: %f", temp, hum);
         vTaskDelay(3000 / portTICK_PERIOD_MS);
     }
-
-    //xTaskCreate(&task, "task", 8000, NULL, 5, NULL);
 }
